@@ -19,6 +19,7 @@ ActiveRecord::Schema.define(version: 3) do
 
   create_table "searches", force: :cascade do |t|
     t.string "title"
+    t.string "star"
     t.string "genre"
     t.integer "duration"
   end
