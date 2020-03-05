@@ -42,6 +42,7 @@ class Search < ActiveRecord::Base
         movie_name_year = raw_result_hash["results"].map{|movie| "#{movie["title"]}, #{movie["release_year"]}"}
         prompt = TTY::Prompt.new
         choice = (prompt.select("Which title?".colorize(:red), movie_name_year))
+        Search.create(title: choice.sub(/,\d+/, ""), type: "Movie")
         get_movie_id(choice)
     end
     
@@ -66,6 +67,8 @@ class Search < ActiveRecord::Base
             sleep 2
             movie_menu(resp_hash)
         else
+            search_db = Search.find_by("title like ?", resp_hash["results"].first["title"])
+            search_db.service(services)
             puts "#{resp_hash["title"].titleize} is available on #{services.join(", ").colorize(:light_red)}."
             sleep 2
             movie_menu(resp_hash)
@@ -92,13 +95,19 @@ class Search < ActiveRecord::Base
     end
     
     def movie_menu(resp_hash)
+        search_db = Search.find_by("title like ?", resh_hash["title"])
+        search_db.update_attribute(star: resp_hash["cast"].first["name"])
+        search_db.update_attribute(service: resp_hash["subscription_web_sources"].map{|source| source["display_name"]})
+        search_db.update_attribute(genre: resp_hash["genres"].first["title"])
+        search_db.update_attribute(media_id: resp_hash["results"].first["id"])
         prompt = TTY::Prompt.new
         choice = prompt.select("What would you like to know about the movie?".colorize(:light_blue)) do |menu|
             menu.choice name: 'What streaming service is this movie on?', value: 1
             menu.choice name: 'Who stars in this movie?', value: 2
             menu.choice name: 'How long is this movie?', value: 3
-            menu.choice name: 'Search again', value: 4
-            menu.choice name: 'Exit', value: 5
+            menu.choice name: 'Favorite this movie', value: 4
+            menu.choice name: 'Search again', value: 5
+            menu.choice name: 'Exit', value: 6
         end
         if choice == 1
             stream_source(resp_hash)
@@ -107,6 +116,9 @@ class Search < ActiveRecord::Base
         elsif choice == 3
             duration(resp_hash)
         elsif choice == 4
+            Favorite.create(user_id: self.id, search_id: search_db.id)
+            puts "Favorited!"
+        elsif choice == 5
             sleep 1
             title_search
         else
@@ -133,6 +145,7 @@ class Search < ActiveRecord::Base
         show_name_year = raw_result_hash["results"].map{|show| "#{show["title"]}, #{show["first_aired"].gsub(/-\d+/, "")}"}
         prompt = TTY::Prompt.new
         choice = (prompt.select("Which title?".colorize(:light_red), show_name_year))
+        Search.create(title: choice.gsub(/\d+-\d+-\d+/, ""), type: "Show")
         get_show_id(choice)
     end
     
@@ -141,6 +154,8 @@ class Search < ActiveRecord::Base
         choice_search = RestClient.get("http://api-public.guidebox.com/v2/search?type=show&field=title&query=#{list_choice}&limit=10&api_key=84b68f0497dc6bc45b5e600947b3156bf9c7743c")
         choice_hash = JSON.parse(choice_search.body)
         id = choice_hash["results"].first["id"]
+        search_db = Search.find_by("title like ?", choice_hash["results"].first["title"])
+        search_db.media_id(id)
         get_show_details(id)
     end
     
@@ -167,6 +182,8 @@ class Search < ActiveRecord::Base
             sleep 2
             show_menu(resp_hash)
         else
+            search_db = Search.find_by("title like ?", resh_hash["title"])
+            search_db.star(resp_hash["cast"].first["name"])
             puts resp_hash["cast"].first(3).map{|source| source["character_name"].length > 0 ? "#{source["name"].colorize(:light_red)}, starred as #{source["character_name"].colorize(:light_red)}" : "#{source["name"].colorize(:light_red)}"}
             sleep 2
             show_menu(resp_hash)
@@ -180,13 +197,19 @@ class Search < ActiveRecord::Base
     end
     
     def show_menu(resp_hash)
+        search_db = Search.find_by("title like ?", resh_hash["title"])
+        search_db.update_attribute(star: resp_hash["cast"].first["name"])
+        search_db.update_attribute(service: resp_hash["channels"].map{|source| source["name"]})
+        search_db.update_attribute(genre: resp_hash["genres"].first["title"])
+        search_db.update_attribute(media_id: resp_hash["results"].first["id"])
         prompt = TTY::Prompt.new
         choice = prompt.select("What would you like to know about this show?".colorize(:light_blue)) do |menu|
             menu.choice name: 'What channel is this show on?', value: 1
             menu.choice name: 'Who stars in this show?', value: 2
             menu.choice name: 'What is this show about?', value: 3
-            menu.choice name: 'Search again', value: 4
-            menu.choice name: 'Exit', value: 5
+            menu.choice name: 'Favorite this show', value: 4
+            menu.choice name: 'Search again', value: 5
+            menu.choice name: 'Exit', value: 6
         end
         if choice == 1
             channel_source(resp_hash)
@@ -195,15 +218,20 @@ class Search < ActiveRecord::Base
         elsif choice == 3
             show_overview(resp_hash)
         elsif choice == 4
+            Favorite.create(user_id: self.id, search_id: search_db.id)
+            puts "Favorited!"
+        elsif choice == 5
             sleep 1
             title_search
         else
             puts "Thank you, come again!".bold
         end
     end
-    
 end
 
+def rummage_searches
+    puts Search.all
+end
 
 class String
     def titleize

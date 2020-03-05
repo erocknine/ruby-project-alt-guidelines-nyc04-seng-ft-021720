@@ -18,10 +18,12 @@ ActiveRecord::Schema.define(version: 3) do
   end
 
   create_table "searches", force: :cascade do |t|
+    t.string "type"
     t.string "title"
     t.string "star"
+    t.string "service"
     t.string "genre"
-    t.integer "duration"
+    t.integer "media_id"
   end
 
   create_table "users", force: :cascade do |t|
